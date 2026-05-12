@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>冰雪世界 · Let It Go</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: none; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #050a1a;
+    }
+    #gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      position: fixed;
+      inset: 0;
+    }
+    #startOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at 50% 30%, #1a3a6e 0%, #0a1028 55%, #020510 100%);
+      transition: opacity 0.5s ease, visibility 0.5s;
+    }
+    #startOverlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    #startBtn {
+      padding: 18px 48px;
+      font-size: 22px;
+      font-weight: 700;
+      color: #e8f4ff;
+      letter-spacing: 0.15em;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      background: linear-gradient(180deg, #6eb8ff 0%, #2a7fd4 45%, #1a5aa0 100%);
+      box-shadow: 0 8px 32px rgba(100, 180, 255, 0.45), inset 0 1px 0 rgba(255,255,255,0.35);
+      animation: pulseGlow 2s ease-in-out infinite;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(1); box-shadow: 0 8px 32px rgba(100, 180, 255, 0.45); }
+      50% { transform: scale(1.03); box-shadow: 0 12px 48px rgba(150, 210, 255, 0.65); }
+    }
+    #recordBtn {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      right: max(12px, env(safe-area-inset-right));
+      z-index: 50;
+      height: 36px;
+      padding: 0 12px 0 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.88);
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+    }
+    #recordBtn .rec-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #fff;
+      flex-shrink: 0;
+      box-shadow: 0 0 8px rgba(255,255,255,0.85);
+    }
+    #timelineWrap {
+      position: fixed;
+      top: max(6px, env(safe-area-inset-top));
+      left: max(8px, env(safe-area-inset-left));
+      right: max(88px, env(safe-area-inset-right));
+      z-index: 55;
+      pointer-events: auto;
+    }
+    #timelineTimeRow {
+      font-size: 10px;
+      color: rgba(200, 230, 255, 0.75);
+      text-align: center;
+      margin-bottom: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    #timelineHit {
+      position: relative;
+      padding: 10px 0;
+      margin: -6px 0;
+      cursor: pointer;
+      touch-action: none;
+    }
+    #timelineBar {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.14);
+      overflow: visible;
+      border: 1px solid rgba(120, 180, 255, 0.35);
+    }
+    #timelineProgress {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #3d8eef, #7ec8ff, #d4f0ff);
+      box-shadow: 0 0 14px rgba(120, 200, 255, 0.65);
+      transition: width 0.08s linear;
+      pointer-events: none;
+    }
+    #timelineWrap.scrubbing #timelineProgress {
+      transition: none;
+    }
+    #timelineKnob {
+      position: absolute;
+      top: 50%;
+      left: 0%;
+      width: 16px;
+      height: 16px;
+      margin-left: -8px;
+      margin-top: -8px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 25%, #ffffff 0%, #b8e8ff 45%, #4a9fff 100%);
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 12px rgba(150, 220, 255, 0.95), 0 2px 6px rgba(0, 0, 40, 0.4);
+      pointer-events: none;
+      z-index: 2;
+    }
+    #timelineTicks {
+      position: relative;
+      height: 22px;
+      margin-top: 4px;
+      pointer-events: none;
+      font-size: 7px;
+      color: rgba(200, 230, 255, 0.5);
+      white-space: nowrap;
+    }
+    #timelineTicks span {
+      position: absolute;
+      transform: translateX(-50%);
+      max-width: 56px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: center;
+      line-height: 1.15;
+    }
+    #timelineCurrent {
+      margin-top: 4px;
+      font-size: 11px;
+      color: rgba(180, 220, 255, 0.65);
+      text-align: center;
+      line-height: 1.35;
+      pointer-events: none;
+    }
+    #timelineCurrent strong {
+      color: #dff6ff;
+      font-weight: 700;
+      text-shadow: 0 0 12px rgba(120, 200, 255, 0.5);
+    }
+    #footerHint {
+      position: fixed;
+      bottom: max(14px, env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 40;
+      font-size: 11px;
+      color: rgba(200, 230, 255, 0.6);
+      text-align: center;
+      pointer-events: none;
+      max-width: 94vw;
+      line-height: 1.4;
+      padding: 0 8px;
+    }
+    #toast {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      z-index: 200;
+      padding: 14px 24px;
+      background: rgba(10, 20, 45, 0.92);
+      color: #cfe8ff;
+      font-size: 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(120, 180, 255, 0.35);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.25s, transform 0.25s, visibility 0.25s;
+      pointer-events: none;
+    }
+    #toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  </style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<audio id="bgm" src="Let It Go.mp3" preload="auto" playsinline webkit-playsinline></audio>
+
+<div id="startOverlay">
+  <button type="button" id="startBtn">开始体验</button>
+</div>
+
+<div id="timelineWrap">
+  <div id="timelineTimeRow">0:00 / --:--</div>
+  <div id="timelineHit">
+    <div id="timelineBar">
+      <div id="timelineProgress"></div>
+      <div id="timelineKnob"></div>
+    </div>
+  </div>
+  <div id="timelineTicks"></div>
+  <div id="timelineCurrent"></div>
+</div>
+
+<button type="button" id="recordBtn" aria-label="录制"><span class="rec-dot"></span><span>录制</span></button>
+<div id="footerHint">跟随光圈指引，像艾莎一样施法</div>
+<div id="toast">录制功能开发中</div>
+
+<script>
+(function () {
+  'use strict';
+  var castleImg = new Image();
+  castleImg.src = 'castle.png';
+
+  var canvas = document.getElementById('gameCanvas');
+  var ctx = canvas.getContext('2d', { alpha: false });
+  var audio = document.getElementById('bgm');
+  var startOverlay = document.getElementById('startOverlay');
+  var startBtn = document.getElementById('startBtn');
+  var recordBtn = document.getElementById('recordBtn');
+  var toast = document.getElementById('toast');
+  var timelineProgress = document.getElementById('timelineProgress');
+  var timelineTicks = document.getElementById('timelineTicks');
+  var timelineCurrent = document.getElementById('timelineCurrent');
+  var timelineHit = document.getElementById('timelineHit');
+  var timelineKnob = document.getElementById('timelineKnob');
+  var timelineTimeRow = document.getElementById('timelineTimeRow');
+
+  var timelineScrubbing = false;
+  var scrubPreviewTime = 0;
+
+  var SEGMENTS = [
+    { key: 'left_snow',   start: 56,  end: 62,  name: '左手挥雪' },
+    { key: 'right_snow',  start: 62,  end: 68,  name: '右手挥雪' },
+    { key: 'ground_ice',  start: 68,  end: 75,  name: '地面结冰' },
+    { key: 'pillar_up',   start: 75,  end: 82,  name: '升起冰柱' },
+    { key: 'alt_pillars', start: 82,  end: 90,  name: '交替冰柱' },
+    { key: 'ice_rink',    start: 90,  end: 100, name: '冻成冰场' },
+    { key: 'ice_stairs',  start: 100, end: 115, name: '造冰台阶' },
+    { key: 'ice_bridge',  start: 115, end: 128, name: '空中冰桥' },
+    { key: 'castle_ring', start: 128, end: 145, name: '城堡框架' },
+    { key: 'spire_swipe', start: 145, end: 160, name: '塔楼尖顶' }
+  ];
+  // 手动标注重拍时间点（秒），与电影原片卡点一致
+var BEAT_TIMES = [
+  56, 62, 68, 75, 82, 90, 100, 115, 128, 145, 160
+];
+
+// 检查当前时间是否在某个重拍点附近（误差窗口 ±0.15秒）
+function isOnBeat(t) {
+  for (var i = 0; i < BEAT_TIMES.length; i++) {
+    if (Math.abs(t - BEAT_TIMES[i]) <= 0.15) return true;
+  }
+  return false;
+}
+
+  var started = false;
+  var w = 0, h = 0, dpr = 1;
+
+  var segmentDone = {};
+  for (var si = 0; si < SEGMENTS.length; si++) segmentDone[SEGMENTS[si].key] = false;
+
+  var groundIceL = 0, groundIceR = 0;
+  var pillarPath = [];
+  var pillarDone = false;
+  var altHits = 0;
+  var altPhase = 0;
+  var rinkRadius = 0;
+  var stairPath = [];
+  var bridgeSegments = [];
+  var castleProgress = 0;
+  var castleScaleMul = 1;
+  var spireBoost = 0;
+
+  var altSpotsL = [];
+  var altSpotsR = [];
+
+  var stars = [];
+  var snowflakes = [];
+  var crystals = [];
+  var cinematicSnow = [];
+
+  var lastTouchX = 0, lastTouchY = 0, touchDown = false;
+  var strokePoints = [];
+  var lastStrokeTime = 0;
+  var circleAccumAngle = 0;
+  var lastCircleAngle = null;
+  var pillarStrokeStart = null;
+  var rinkTwoDist0 = 0;
+  var rinkSingleFromCenter = false;
+  var zigzagTurns = 0;
+  var lastStrokeDir = null;
+  var bridgeFromLeft = false;
+  var lastSegmentKey = '';
+
+  var rightTapCountWindow = 0;
+  var rightTapWindowT = 0;
+
+  function resetAllProgress() {
+    for (var k in segmentDone) segmentDone[k] = false;
+    groundIceL = groundIceR = 0;
+    pillarPath.length = 0;
+    pillarDone = false;
+    altHits = 0;
+    altPhase = 0;
+    rinkRadius = 0;
+    stairPath.length = 0;
+    bridgeSegments.length = 0;
+    castleProgress = 0;
+    castleScaleMul = 1;
+    spireBoost = 0;
+    strokePoints.length = 0;
+    circleAccumAngle = 0;
+    lastCircleAngle = null;
+    pillarStrokeStart = null;
+    cinematicSnow.length = 0;
+    zigzagTurns = 0;
+    bridgeFromLeft = false;
+    lastSegmentKey = '';
+    rinkTwoDist0 = 0;
+    rinkSingleFromCenter = false;
+    rightTapCountWindow = 0;
+    rightTapWindowT = 0;
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    initStarsIfNeeded();
+    layoutAltSpots();
+    if (started) initSnow();
+  }
+
+  function layoutAltSpots() {
+    altSpotsL = [
+      { x: w * 0.30, y: h * 0.40 },
+      { x: w * 0.30, y: h * 0.58 }
+    ];
+    altSpotsR = [
+      { x: w * 0.70, y: h * 0.40 },
+      { x: w * 0.70, y: h * 0.58 }
+    ];
+  }
+
+  function initStarsIfNeeded() {
+    var target = Math.floor((w * h) / 9000);
+    if (target < 40) target = 40;
+    if (target > 140) target = 140;
+    while (stars.length < target) {
+      stars.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: Math.random() * 1.2 + 0.3,
+        tw: Math.random() * Math.PI * 2,
+        sp: 0.5 + Math.random() * 1.5
+      });
+    }
+    if (stars.length > target) stars.length = target;
+  }
+
+  function initSnow() {
+    snowflakes.length = 0;
+    var n = Math.floor(w / 25);
+    if (n < 25) n = 25;
+    if (n > 70) n = 70;
+    for (var i = 0; i < n; i++) {
+      snowflakes.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vy: 0.3 + Math.random() * 0.9,
+        vx: (Math.random() - 0.5) * 0.35,
+        r: 1 + Math.random() * 2.2,
+        o: 0.15 + Math.random() * 0.35
+      });
+    }
+  }
+
+  function getAudioT() {
+    return started ? (audio.currentTime || 0) : 0;
+  }
+
+  function getAudioDuration() {
+    return audio.duration && isFinite(audio.duration) ? audio.duration : 180;
+  }
+
+  function getTimelineTime() {
+    if (timelineScrubbing) return scrubPreviewTime;
+    return getAudioT();
+  }
+
+  function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  function applyTimelineVisual(timeSec) {
+    var dur = getAudioDuration();
+    var pct = dur > 0 ? clamp((100 * timeSec) / dur, 0, 100) : 0;
+    timelineProgress.style.width = pct + '%';
+    timelineKnob.style.left = pct + '%';
+  }
+
+  function updateTimeRow() {
+    var dur = getAudioDuration();
+    var cur = getTimelineTime();
+    if (timelineTimeRow) timelineTimeRow.textContent = formatTime(cur) + ' / ' + formatTime(dur);
+  }
+
+  function seekVisualFromClientX(clientX) {
+    var rect = timelineHit.getBoundingClientRect();
+    var ratio = rect.width > 0 ? clamp((clientX - rect.left) / rect.width, 0, 1) : 0;
+    scrubPreviewTime = ratio * getAudioDuration();
+    applyTimelineVisual(scrubPreviewTime);
+    updateTimeRow();
+  }
+
+  function setupTimelineScrub() {
+    var wrap = document.getElementById('timelineWrap');
+    var boundMove = null;
+    var boundEnd = null;
+
+    function begin(clientX) {
+      if (!started) return;
+      timelineScrubbing = true;
+      wrap.classList.add('scrubbing');
+      seekVisualFromClientX(clientX);
+    }
+    function move(clientX) {
+      if (!timelineScrubbing) return;
+      seekVisualFromClientX(clientX);
+    }
+    function end() {
+      if (!timelineScrubbing) return;
+      timelineScrubbing = false;
+      wrap.classList.remove('scrubbing');
+      audio.currentTime = scrubPreviewTime;
+      applyTimelineVisual(getAudioT());
+      updateTimeRow();
+    }
+
+    function detachTouchDoc() {
+      if (!boundMove) return;
+      document.removeEventListener('touchmove', boundMove, { capture: true });
+      document.removeEventListener('touchend', boundEnd, { capture: true });
+      document.removeEventListener('touchcancel', boundEnd, { capture: true });
+      boundMove = null;
+      boundEnd = null;
+    }
+
+    timelineHit.addEventListener('mousedown', function (e) {
+      if (!started) return;
+      e.preventDefault();
+      e.stopPropagation();
+      begin(e.clientX);
+      var onMove = function (ev) { move(ev.clientX); };
+      var onUp = function () {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        end();
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
+
+    timelineHit.addEventListener('touchstart', function (e) {
+      if (!started) return;
+      e.preventDefault();
+      e.stopPropagation();
+      detachTouchDoc();
+      begin(e.touches[0].clientX);
+      boundMove = function (ev) {
+        if (!timelineScrubbing) return;
+        if (ev.touches.length) {
+          ev.preventDefault();
+          move(ev.touches[0].clientX);
+        }
+      };
+      boundEnd = function () {
+        detachTouchDoc();
+        end();
+      };
+      document.addEventListener('touchmove', boundMove, { passive: false, capture: true });
+      document.addEventListener('touchend', boundEnd, { capture: true });
+      document.addEventListener('touchcancel', boundEnd, { capture: true });
+    }, { passive: false });
+  }
+
+  function getActiveSegment(t) {
+    for (var i = 0; i < SEGMENTS.length; i++) {
+      var s = SEGMENTS[i];
+      if (t >= s.start && t < s.end) return s;
+    }
+    return null;
+  }
+
+  function getPreHintSegment(t) {
+    for (var i = 0; i < SEGMENTS.length; i++) {
+      var s = SEGMENTS[i];
+      if (segmentDone[s.key]) continue;
+      if (t >= s.start - 1 && t < s.start) return s;
+    }
+    return null;
+  }
+
+  function formatTime(sec) {
+    var m = Math.floor(sec / 60);
+    var s = Math.floor(sec % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function buildTimelineTicks() {
+    var dur = getAudioDuration();
+    timelineTicks.innerHTML = '';
+    for (var i = 0; i < SEGMENTS.length; i++) {
+      var s = SEGMENTS[i];
+      var el = document.createElement('span');
+      el.innerHTML = formatTime(s.start) + '<br/>' + s.name;
+      el.style.left = (100 * s.start / dur) + '%';
+      timelineTicks.appendChild(el);
+    }
+  }
+
+  function updateTimelineUI() {
+    var t = getTimelineTime();
+    var dur = getAudioDuration();
+    if (!timelineScrubbing) applyTimelineVisual(getAudioT());
+    updateTimeRow();
+
+    var active = getActiveSegment(t);
+    if (active) {
+      timelineCurrent.innerHTML = '当前段落：<strong>' + active.name + '</strong>';
+    } else {
+      var next = null;
+      for (var i = 0; i < SEGMENTS.length; i++) {
+        if (t < SEGMENTS[i].start && !segmentDone[SEGMENTS[i].key]) {
+          next = SEGMENTS[i];
+          break;
+        }
+      }
+      if (next) {
+        timelineCurrent.innerHTML = '下一段：' + next.name + '（' + formatTime(next.start) + '）';
+      } else {
+        timelineCurrent.innerHTML = '自由施法 · 基础冰晶';
+      }
+    }
+  }
+
+  function drawHexagon(cx, cy, size, rot, alpha) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.beginPath();
+    for (var i = 0; i < 6; i++) {
+      var ang = (Math.PI / 3) * i - Math.PI / 6;
+      var px = Math.cos(ang) * size;
+      var py = Math.sin(ang) * size;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(230, 248, 255, ' + alpha + ')';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(180, 220, 255, ' + (alpha * 0.9) + ')';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawSparkleStar(cx, cy, r, rot, alpha, hue) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.strokeStyle = 'hsla(' + hue + ', 95%, 92%, ' + alpha + ')';
+    ctx.lineWidth = Math.max(1, r * 0.22);
+    ctx.beginPath();
+    ctx.moveTo(-r, 0);
+    ctx.lineTo(r, 0);
+    ctx.moveTo(0, -r);
+    ctx.lineTo(0, r);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,' + (alpha * 0.85) + ')';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMiniSnowflake(cx, cy, r, rot, alpha, hue) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.strokeStyle = 'hsla(' + hue + ', 70%, 88%, ' + alpha + ')';
+    ctx.lineWidth = Math.max(0.8, r * 0.12);
+    for (var k = 0; k < 6; k++) {
+      var a = (Math.PI / 3) * k;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawShinyHex(cx, cy, size, rot, alpha, hue) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.beginPath();
+    for (var i = 0; i < 6; i++) {
+      var ang = (Math.PI / 3) * i - Math.PI / 6;
+      var px = Math.cos(ang) * size;
+      var py = Math.sin(ang) * size;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    var g = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 1.1);
+    g.addColorStop(0, 'hsla(' + hue + ', 40%, 100%, ' + (alpha * 0.95) + ')');
+    g.addColorStop(0.55, 'hsla(' + hue + ', 85%, 88%, ' + (alpha * 0.55) + ')');
+    g.addColorStop(1, 'hsla(' + hue + ', 90%, 72%, ' + (alpha * 0.35) + ')');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,' + (alpha * 0.75) + ')';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function spawnTouchGlitterBurst(cx, cy, opts) {
+    opts = opts || {};
+    var spread = opts.spread != null ? opts.spread : 1;
+    var count = opts.count != null ? Math.floor(opts.count) : 16;
+    var innerR = (opts.innerR != null ? opts.innerR : 10) * spread;
+    var shapes = ['hex', 'star', 'flake'];
+    for (var i = 0; i < count; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var spd = (0.35 + Math.random() * 4.2) * spread;
+      crystals.push({
+        kind: 'burst',
+        shape: shapes[Math.floor(Math.random() * shapes.length)],
+        x: cx + (Math.random() - 0.5) * innerR * 2,
+        y: cy + (Math.random() - 0.5) * innerR * 2,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - (0.25 + Math.random() * 0.6),
+        rot: Math.random() * Math.PI * 2,
+        vr: (Math.random() - 0.5) * 0.14,
+        life: 1,
+        decay: 0.0038 + Math.random() * 0.0045,
+        grow: 0,
+        growSp: 0.038 + Math.random() * 0.05,
+        sizeMin: 0.7 + Math.random() * 1.2,
+        sizeMax: 4 + Math.random() * 10,
+        hue: 186 + Math.random() * 38,
+        gleamOff: Math.random() * Math.PI * 2,
+        boosted: false
+      });
+    }
+  }
+
+function spawnBasicCrystal(screenX, screenY, boosted) {
+  var spread = boosted ? 2 : 1;
+  var count = boosted ? 32 : 16;
+  var innerR = boosted ? 12 : 6;
+  spawnTouchGlitterBurst(screenX, screenY, { spread: spread, count: count, innerR: innerR });
+}
+
+  function triggerLeftSnow(x, y) {
+    spawnTouchGlitterBurst(x, y, { spread: 1.15, count: 12, innerR: 8 });
+    for (var i = 0; i < 4; i++) {
+      crystals.push({
+        kind: 'burst',
+        shape: 'hex',
+        x: x + (Math.random() - 0.5) * 24,
+        y: y + (Math.random() - 0.5) * 14,
+        vx: (Math.random() - 0.5) * 0.9,
+        vy: -2.2 - Math.random() * 2.8,
+        rot: Math.random() * Math.PI * 2,
+        vr: (Math.random() - 0.5) * 0.1,
+        life: 1,
+        decay: 0.004 + Math.random() * 0.004,
+        grow: 0.35,
+        growSp: 0.06,
+        sizeMin: 2.2,
+        sizeMax: 7 + Math.random() * 5,
+        hue: 195 + Math.random() * 25,
+        gleamOff: Math.random() * 6,
+        boosted: true
+      });
+    }
+  }
+
+  function triggerRightSnow(x, y, density) {
+    var n = Math.min(48, 14 + density * 8);
+    for (var i = 0; i < n; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var spd = 1 + Math.random() * 5;
+      cinematicSnow.push({
+        x: x + (Math.random() - 0.5) * 40,
+        y: y + (Math.random() - 0.5) * 40,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - 1,
+        r: 1.5 + Math.random() * 3,
+        life: 1,
+        o: 0.25 + Math.random() * 0.45
+      });
+    }
+  }
+
+  function updateCinematicSnow() {
+    for (var i = cinematicSnow.length - 1; i >= 0; i--) {
+      var s = cinematicSnow[i];
+      s.x += s.vx;
+      s.y += s.vy;
+      s.vx *= 0.98;
+      s.vy *= 0.98;
+      s.life -= 0.004;
+      if (s.life <= 0) cinematicSnow.splice(i, 1);
+    }
+  }
+
+  function drawCinematicSnowLayer() {
+    for (var i = 0; i < cinematicSnow.length; i++) {
+      var s = cinematicSnow[i];
+      ctx.fillStyle = 'rgba(255,255,255,' + (s.o * s.life) + ')';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r * s.life, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function extendGroundIce(x, y, px, py) {
+    var bottomZone = y > h * 0.72 || py > h * 0.72;
+    if (!bottomZone) return;
+    var mid = w * 0.5;
+    var band = w * 0.14;
+    if (Math.abs(x - mid) > band && Math.abs(px - mid) > band) return;
+    if (x < mid) groundIceL = Math.max(groundIceL, Math.min(1, (mid - Math.min(x, px)) / (mid * 0.95)));
+    if (x > mid) groundIceR = Math.max(groundIceR, Math.min(1, (Math.max(x, px) - mid) / (mid * 0.95)));
+  }
+
+  function drawGroundIce() {
+    if (groundIceL <= 0.02 && groundIceR <= 0.02) return;
+    var mid = w * 0.5;
+    var gy = h * 0.92;
+    var gh = h * 0.12;
+    ctx.save();
+    var g1 = ctx.createLinearGradient(mid, gy - gh, mid, gy);
+    g1.addColorStop(0, 'rgba(200, 240, 255, 0.35)');
+    g1.addColorStop(1, 'rgba(100, 180, 230, 0.12)');
+    ctx.fillStyle = g1;
+    if (groundIceL > 0) {
+      ctx.beginPath();
+      ctx.moveTo(mid, gy);
+      ctx.lineTo(mid - groundIceL * mid, gy);
+      ctx.lineTo(mid - groundIceL * mid, gy - gh);
+      ctx.lineTo(mid, gy - gh * 0.85);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (groundIceR > 0) {
+      ctx.beginPath();
+      ctx.moveTo(mid, gy);
+      ctx.lineTo(mid + groundIceR * mid, gy);
+      ctx.lineTo(mid + groundIceR * mid, gy - gh);
+      ctx.lineTo(mid, gy - gh * 0.85);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function appendPillarPoint(x, y) {
+    if (pillarPath.length === 0) {
+      pillarPath.push({ x: x, y: y });
+      return;
+    }
+    var last = pillarPath[pillarPath.length - 1];
+    var d = Math.hypot(x - last.x, y - last.y);
+    if (d > 6) pillarPath.push({ x: x, y: y });
+  }
+
+  function drawIcePillarPath() {
+    if (pillarPath.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200, 235, 255, 0.45)';
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pillarPath[0].x, pillarPath[0].y);
+    for (var i = 1; i < pillarPath.length; i++) ctx.lineTo(pillarPath[i].x, pillarPath[i].y);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    for (var j = 0; j < pillarPath.length; j += 3) {
+      var p = pillarPath[j];
+      drawHexagon(p.x, p.y, 9, j * 0.2, 0.35);
+    }
+    ctx.restore();
+  }
+
+  function drawAltHotspots(t, activeSeg, pulse) {
+    var spotsL = altSpotsL;
+    var spotsR = altSpotsR;
+    var leftOn = activeSeg && activeSeg.key === 'alt_pillars' && !segmentDone.alt_pillars && altPhase === 0;
+    var rightOn = activeSeg && activeSeg.key === 'alt_pillars' && !segmentDone.alt_pillars && altPhase === 1;
+    var pre = getPreHintSegment(t);
+    var preAlt = pre && pre.key === 'alt_pillars';
+
+    function drawSpot(pt, on, preHint) {
+      var a = on ? (0.35 + pulse * 0.35) : (preHint ? 0.12 + pulse * 0.15 : 0);
+      if (a <= 0.02) return;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 44, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(160, 220, 255, ' + a + ')';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 28, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, ' + (a * 0.6) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    for (var i = 0; i < spotsL.length; i++) drawSpot(spotsL[i], leftOn, preAlt);
+    for (var j = 0; j < spotsR.length; j++) drawSpot(spotsR[j], rightOn, preAlt);
+  }
+
+  function tryAltTap(x, y, t) {
+    var seg = getActiveSegment(t);
+    if (!seg || seg.key !== 'alt_pillars' || segmentDone.alt_pillars) return false;
+    var spots = altPhase === 0 ? altSpotsL : altSpotsR;
+    for (var i = 0; i < spots.length; i++) {
+      if (Math.hypot(x - spots[i].x, y - spots[i].y) < 52) {
+        altHits++;
+        spawnPillarBurst(spots[i].x, spots[i].y);
+        altPhase = 1 - altPhase;
+        if (altHits >= 4) {
+          segmentDone.alt_pillars = true;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function spawnPillarBurst(cx, cy) {
+    spawnTouchGlitterBurst(cx, cy, { spread: 0.95, count: 14, innerR: 6 });
+  }
+
+  function drawRinkGlow(t, activeSeg) {
+    if (rinkRadius <= 2 && !(activeSeg && activeSeg.key === 'ice_rink' && !segmentDone.ice_rink)) return;
+    var cx = w * 0.5, cy = h * 0.48;
+    var r = Math.max(rinkRadius, (activeSeg && activeSeg.key === 'ice_rink' && !segmentDone.ice_rink) ? 40 + Math.sin(t * 6) * 8 : 0);
+    if (r <= 2) return;
+    ctx.save();
+    var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, 'rgba(220, 250, 255, 0.18)');
+    g.addColorStop(0.55, 'rgba(120, 200, 255, 0.08)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+function drawStairPath() {
+  if (stairPath.length < 2) return;
+  ctx.save();
+  for (var i = 1; i < stairPath.length; i++) {
+    var p0 = stairPath[i - 1];
+    var p1 = stairPath[i];
+    var dx = p1.x - p0.x;
+    var dy = p1.y - p0.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 2) continue;
+    
+    var ang = Math.atan2(dy, dx);
+    var stepWidth = 38;
+    var stepThickness = 9;
+    var perpX = -Math.sin(ang);
+    var perpY = Math.cos(ang);
+    
+    var midX = (p0.x + p1.x) * 0.5;
+    var midY = (p0.y + p1.y) * 0.5;
+    
+    // 冰晶台阶主体（梯形）
+    ctx.beginPath();
+    ctx.moveTo(midX - stepWidth / 2 * perpX, midY - stepWidth / 2 * perpY);
+    ctx.lineTo(midX + stepWidth / 2 * perpX, midY + stepWidth / 2 * perpY);
+    ctx.lineTo(midX + stepWidth / 2 * perpX + Math.cos(ang) * stepThickness, 
+               midY + stepWidth / 2 * perpY + Math.sin(ang) * stepThickness);
+    ctx.lineTo(midX - stepWidth / 2 * perpX + Math.cos(ang) * stepThickness, 
+               midY - stepWidth / 2 * perpY + Math.sin(ang) * stepThickness);
+    ctx.closePath();
+    
+    // 冰蓝渐变
+    var g = ctx.createLinearGradient(midX, midY, midX, midY - stepThickness * 0.8);
+    g.addColorStop(0, 'rgba(150, 210, 240, 0.55)');
+    g.addColorStop(1, 'rgba(230, 250, 255, 0.85)');
+    ctx.fillStyle = g;
+    ctx.fill();
+    
+    // 高光边缘
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    
+    // 台阶面上飘浮的小冰晶
+    drawHexagon(midX, midY - stepThickness * 2, 4.5, ang, 0.65);
+  }
+  ctx.restore();
+}
+
+  function drawBridgeLayer() {
+    ctx.save();
+    ctx.shadowColor = 'rgba(180, 230, 255, 0.8)';
+    ctx.shadowBlur = 12;
+    for (var i = 0; i < bridgeSegments.length; i++) {
+      var b = bridgeSegments[i];
+      ctx.strokeStyle = 'rgba(220, 245, 255, ' + (0.35 + b.t * 0.4) + ')';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(b.x1, b.y1);
+      ctx.lineTo(b.x2, b.y2);
+      ctx.stroke();
+      var steps = 5;
+      for (var s = 0; s <= steps; s++) {
+        var f = s / steps;
+        var x = b.x1 + (b.x2 - b.x1) * f;
+        var y = b.y1 + (b.y2 - b.y1) * f - 6;
+        drawHexagon(x, y, 7, f * 3, 0.28);
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawCastle() {function drawCastle() {
+  if (castleProgress <= 0.02 && spireBoost <= 0.02) return;
+  
+  var p = Math.min(1, castleProgress);
+  var ease = 1 - Math.pow(1 - p, 3);
+  var imgW = w * 0.78;          // 城堡占屏幕宽度的78%
+  var imgH = imgW * 0.85;       // 根据你图片的比例调整，这里是假设宽高比接近 1:0.85
+  var baseX = w * 0.5 - imgW / 2;
+  var groundY = h * 0.88;
+  var targetY = groundY - imgH + 10;  // 城堡底部贴着冰面
+  
+  // 垂直升起动画
+  var currentY = groundY + (targetY - groundY) * ease;
+  var alpha = 0.9 * ease;
+  
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(castleImg, baseX, currentY, imgW, imgH);
+  
+  // 尖顶阶段额外光效
+  if (spireBoost > 0.2) {
+    ctx.globalCompositeOperation = 'lighter';
+    var glowRadius = imgW * 0.45 * ease * spireBoost;
+    var glow = ctx.createRadialGradient(w * 0.5, currentY + imgH * 0.3, 0, 
+                                        w * 0.5, currentY + imgH * 0.3, glowRadius);
+    glow.addColorStop(0, 'rgba(180, 230, 255, 0.25)');
+    glow.addColorStop(1, 'rgba(180, 230, 255, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+  }
+  
+  ctx.restore();
+}}
+
+  function drawHints(t, activeSeg, preSeg, pulse) {
+    var cx = w * 0.5, cy = h * 0.5;
+
+    function edgeFlash(left) {
+      var gx = left ? 0 : w;
+      var g = ctx.createRadialGradient(gx, h * 0.5, 0, gx, h * 0.5, w * 0.45);
+      g.addColorStop(0, 'rgba(120, 200, 255, ' + (0.22 + pulse * 0.25) + ')');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    function drawArrow(x1, y1, x2, y2) {
+      ctx.strokeStyle = 'rgba(200, 235, 255, ' + (0.35 + pulse * 0.25) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      var ang = Math.atan2(y2 - y1, x2 - x1);
+      var ah = 10;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - ah * Math.cos(ang - 0.45), y2 - ah * Math.sin(ang - 0.45));
+      ctx.lineTo(x2 - ah * Math.cos(ang + 0.45), y2 - ah * Math.sin(ang + 0.45));
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(230, 250, 255, ' + (0.45 + pulse * 0.2) + ')';
+      ctx.fill();
+    }
+
+    if (preSeg) {
+      if (preSeg.key === 'left_snow') edgeFlash(true);
+      else if (preSeg.key === 'right_snow') edgeFlash(false);
+      else if (preSeg.key === 'ground_ice') {
+        var gy = h * 0.86;
+        drawArrow(cx, gy, cx - w * 0.28, gy);
+        drawArrow(cx, gy, cx + w * 0.28, gy);
+      } else if (preSeg.key === 'pillar_up') {
+        drawArrow(w * 0.38, h * 0.78, w * 0.38, h * 0.32);
+      } else if (preSeg.key === 'alt_pillars') {
+        drawAltHotspots(t, null, pulse);
+      } else if (preSeg.key === 'ice_rink') {
+        drawRinkGlow(t, { key: 'ice_rink' });
+      } else if (preSeg.key === 'ice_stairs') {
+        drawArrow(w * 0.18, h * 0.82, w * 0.18, h * 0.55);
+        drawArrow(w * 0.88, h * 0.88, w * 0.35, h * 0.35);
+      } else if (preSeg.key === 'ice_bridge') {
+        drawArrow(w * 0.15, h * 0.48, w * 0.85, h * 0.48);
+      } else if (preSeg.key === 'castle_ring') {
+        ctx.strokeStyle = 'rgba(200, 230, 255, ' + (0.25 + pulse * 0.35) + ')';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, h * 0.52, Math.min(w, h) * 0.18, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (preSeg.key === 'spire_swipe') {
+        drawArrow(w * 0.5, h * 0.82, w * 0.5, h * 0.28);
+      }
+    }
+
+    if (!activeSeg) return;
+    if (segmentDone[activeSeg.key]) return;
+
+    if (activeSeg.key === 'left_snow') edgeFlash(true);
+    else if (activeSeg.key === 'right_snow') edgeFlash(false);
+    else if (activeSeg.key === 'ground_ice') {
+      var g2y = h * 0.86;
+      drawArrow(cx, g2y, cx - w * 0.28, g2y);
+      drawArrow(cx, g2y, cx + w * 0.28, g2y);
+    } else if (activeSeg.key === 'pillar_up') {
+      drawArrow(w * 0.38, h * 0.78, w * 0.38, h * 0.30);
+    } else if (activeSeg.key === 'alt_pillars') {
+      drawAltHotspots(t, activeSeg, pulse);
+    } else if (activeSeg.key === 'ice_rink') {
+      drawRinkGlow(t, activeSeg);
+    } else if (activeSeg.key === 'ice_stairs') {
+      drawArrow(w * 0.18, h * 0.82, w * 0.18, h * 0.55);
+      drawArrow(w * 0.88, h * 0.88, w * 0.32, h * 0.32);
+    } else if (activeSeg.key === 'ice_bridge') {
+      drawArrow(w * 0.12, h * 0.48, w * 0.88, h * 0.48);
+    } else if (activeSeg.key === 'castle_ring') {
+      ctx.strokeStyle = 'rgba(220, 240, 255, ' + (0.3 + pulse * 0.35) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, h * 0.52, Math.min(w, h) * 0.18, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (activeSeg.key === 'spire_swipe') {
+      drawArrow(w * 0.5, h * 0.82, w * 0.5, h * 0.26);
+    }
+  }
+
+  function getTouchPos(e, idx) {
+    var r = canvas.getBoundingClientRect();
+    var touch = e.touches ? e.touches[idx || 0] : e;
+    return {
+      x: touch.clientX - r.left,
+      y: touch.clientY - r.top
+    };
+  }
+
+  function getTouchesCentroidAndSpread(e) {
+    if (!e.touches || e.touches.length < 2) return null;
+    var a = getTouchPos(e, 0);
+    var b = getTouchPos(e, 1);
+    var mx = (a.x + b.x) * 0.5, my = (a.y + b.y) * 0.5;
+    var d = Math.hypot(b.x - a.x, b.y - a.y);
+    return { mx: mx, my: my, d: d };
+  }
+
+  function onTouchStart(e) {
+    if (!started) return;
+    e.preventDefault();
+    var t = getAudioT();
+    var seg = getActiveSegment(t);
+    var p = getTouchPos(e, 0);
+    var wasRightDone = segmentDone.right_snow;
+    lastTouchX = p.x;
+    lastTouchY = p.y;
+    touchDown = true;
+    strokePoints.length = 0;
+    strokePoints.push({ x: p.x, y: p.y, t: performance.now() });
+    lastStrokeTime = performance.now();
+    pillarStrokeStart = { x: p.x, y: p.y };
+    bridgeFromLeft = !!(seg && seg.key === 'ice_bridge' && !segmentDone.ice_bridge && p.x < w * 0.24);
+    lastCircleAngle = null;
+    var consumedCinematicTap = false;
+
+    if (seg && !segmentDone[seg.key]) {
+      if (seg.key === 'left_snow' && p.x < w * 0.42) {
+        triggerLeftSnow(p.x, p.y);
+        segmentDone.left_snow = true;
+        consumedCinematicTap = true;
+      } else if (seg.key === 'right_snow' && p.x > w * 0.58) {
+        if (t - rightTapWindowT > 0.35) { rightTapCountWindow = 0; rightTapWindowT = t; }
+        rightTapCountWindow++;
+        triggerRightSnow(p.x, p.y, rightTapCountWindow);
+        segmentDone.right_snow = true;
+        consumedCinematicTap = true;
+      } else if (seg.key === 'alt_pillars') {
+        if (tryAltTap(p.x, p.y, t)) consumedCinematicTap = true;
+      } else if (seg.key === 'ice_rink') {
+        var rcx = w * 0.5, rcy = h * 0.48;
+        if (Math.hypot(p.x - rcx, p.y - rcy) < Math.min(w, h) * 0.12) rinkSingleFromCenter = true;
+        var ts0 = getTouchesCentroidAndSpread(e);
+        if (ts0) {
+          rinkTwoDist0 = ts0.d;
+          rinkSingleFromCenter = false;
+        }
+      } else if (seg.key === 'castle_ring') {
+        circleAccumAngle = 0;
+        lastCircleAngle = Math.atan2(p.y - h * 0.52, p.x - w * 0.5);
+      } else if (seg.key === 'pillar_up' && p.y > h * 0.56) {
+        pillarPath.length = 0;
+        pillarPath.push({ x: p.x, y: p.y });
+        pillarDone = false;
+      } else if (seg.key === 'ice_stairs') {
+        stairPath.length = 0;
+        stairPath.push({ x: p.x, y: p.y });
+        zigzagTurns = 0;
+      }
+    }
+
+    if (seg && seg.key === 'right_snow' && p.x > w * 0.58 && wasRightDone) {
+      if (t - rightTapWindowT > 0.35) { rightTapCountWindow = 0; rightTapWindowT = t; }
+      rightTapCountWindow++;
+      triggerRightSnow(p.x, p.y, rightTapCountWindow);
+      spawnBasicCrystal(p.x, p.y, isOnBeat(t));
+      return;
+    }
+
+    if (!consumedCinematicTap) spawnBasicCrystal(p.x, p.y, isOnBeat(t));
+  }
+
+  function onTouchMove(e) {
+    if (!started || !touchDown) return;
+    e.preventDefault();
+    var t = getAudioT();
+    var seg = getActiveSegment(t);
+    var p = getTouchPos(e, 0);
+    var now = performance.now();
+    var dt = Math.max(1, now - lastStrokeTime);
+    lastStrokeTime = now;
+
+    strokePoints.push({ x: p.x, y: p.y, t: now });
+    if (strokePoints.length > 120) strokePoints.shift();
+
+   if (!seg || segmentDone[seg.key]) {
+  spawnBasicBridge(lastTouchX, lastTouchY, p.x, p.y);
+  if (isOnBeat(t)) {
+    spawnTouchGlitterBurst(p.x, p.y, { spread: 2, count: 24, innerR: 8 });
+  }
+  lastTouchX = p.x; lastTouchY = p.y; return;
+}
+
+    if (seg.key === 'ground_ice' && !segmentDone.ground_ice) {
+      extendGroundIce(p.x, p.y, lastTouchX, lastTouchY);
+      if (groundIceL > 0.88 && groundIceR > 0.88) segmentDone.ground_ice = true;
+      spawnBasicBridge(lastTouchX, lastTouchY, p.x, p.y);
+    } else if (seg.key === 'pillar_up' && !segmentDone.pillar_up) {
+      var colL = w * 0.18, colR = w * 0.48;
+      if (p.x > colL && p.x < colR && pillarStrokeStart && pillarStrokeStart.y > h * 0.52) {
+        if (p.y < lastTouchY - 0.5) appendPillarPoint(p.x, p.y);
+      }
+      spawnBasicBridge(lastTouchX, lastTouchY, p.x, p.y);
+    } else if (seg.key === 'ice_rink' && !segmentDone.ice_rink) {
+      var ts = getTouchesCentroidAndSpread(e);
+      if (ts && rinkTwoDist0 > 10) {
+        rinkRadius = Math.max(rinkRadius, ts.d * 0.65);
+        if (ts.d > rinkTwoDist0 * 1.35 && rinkRadius > Math.min(w, h) * 0.22) segmentDone.ice_rink = true;
+      } else if (rinkSingleFromCenter) {
+        var cx = w * 0.5, cy = h * 0.48;
+        rinkRadius = Math.max(rinkRadius, Math.hypot(p.x - cx, p.y - cy));
+        if (rinkRadius > Math.min(w, h) * 0.28) segmentDone.ice_rink = true;
+      }
+      spawnBasicBridge(lastTouchX, lastTouchY, p.x, p.y);
+    } else if (seg.key === 'ice_stairs' && !segmentDone.ice_stairs) {
+      if (stairPath.length === 0 || Math.hypot(p.x - lastTouchX, p.y - lastTouchY) > 8) {
+        stairPath.push({ x: p.x, y: p.y });
+        if (stairPath.length > 2) {
+          var a = stairPath[stairPath.length - 3];
+          var b = stairPath[stairPath.length - 2];
+          var c = stairPath[stairPath.length - 1];
+          var ang1 = Math.atan2(b.y - a.y, b.x - a.x);
+          var ang2 = Math.atan2(c.y - b.y, c.x - b.x);
+          var dang = ang2 - ang1;
+          while (dang > Math.PI) dang -= Math.PI * 2;
+          while (dang < -Math.PI) dang += Math.PI * 2;
+          if (Math.abs(dang) > 0.55) zigzagTurns++;
+        }
+      }
+      var startedBR = stairPath.length > 0 && stairPath[0].x > w * 0.52 && stairPath[0].y > h * 0.55;
+      var endedTL = p.x < w * 0.48 && p.y < h * 0.42;
+      if (startedBR && endedTL && zigzagTurns >= 3 && stairPath.length > 18) segmentDone.ice_stairs = true;
+      spawnBasicBridge(lastTouchX, lastTouchY, p.x, p.y);
+    } else if (seg.key === 'ice_bridge' && !segmentDone.ice_bridge) {
+      var midLo = h * 0.36, midHi = h * 0.64;
+      if (p.y > midLo && p.y < midHi && p.x > lastTouchX + 2) {
+        bridgeSegments.push({ x1: lastTouchX, y1: lastTouchY, x2: p.x, y2: p.y, t: 1 });
+        if (bridgeSegments.length > 80) bridgeSegments.shift();
+      }
+      if (bridgeFromLeft && p.x > w * 0.82 && lastTouchX > w * 0.5) segmentDone.ice_bridge = true;
+      spawnBasicBridge(lastTouchX, lastTouchY, p.x, p.y);
+    } else if (seg.key === 'castle_ring' && !segmentDone.castle_ring) {
+      var cxb = w * 0.5, cyb = h * 0.52;
+      if (Math.hypot(p.x - cxb, p.y - cyb) < Math.min(w, h) * 0.42) {
+        var ang = Math.atan2(p.y - cyb, p.x - cxb);
+        if (lastCircleAngle !== null) {
+          var da = ang - lastCircleAngle;
+          while (da > Math.PI) da -= Math.PI * 2;
+          while (da < -Math.PI) da += Math.PI * 2;
+          circleAccumAngle += Math.abs(da);
+        }
+        lastCircleAngle = ang;
+        castleProgress = Math.min(1, circleAccumAngle / (Math.PI * 2.2));
+        var rad = Math.hypot(p.x - cxb, p.y - cyb);
+        castleScaleMul = 0.75 + Math.min(0.45, rad / (Math.min(w, h) * 0.35));
+        if (castleProgress >= 0.98) segmentDone.castle_ring = true;
+      }
+      spawnBasicBridge(lastTouchX, lastTouchY, p.x, p.y);
+    } else if (seg.key === 'spire_swipe' && !segmentDone.spire_swipe && segmentDone.castle_ring) {
+      var vy = (p.y - lastTouchY) / dt;
+      if (p.y < lastTouchY && vy < -1.2) {
+        spireBoost = Math.min(1, spireBoost + Math.min(0.35, -vy * 0.04));
+      }
+      if (spireBoost > 0.85) segmentDone.spire_swipe = true;
+      spawnBasicBridge(lastTouchX, lastTouchY, p.x, p.y);
+    } else {
+      spawnBasicBridge(lastTouchX, lastTouchY, p.x, p.y);
+    }
+
+    lastTouchX = p.x;
+    lastTouchY = p.y;
+  }
+
+  function onTouchEnd(e) {
+    touchDown = false;
+    if (e.cancelable) e.preventDefault();
+    var t = getAudioT();
+    var seg = getActiveSegment(t);
+    if (seg && seg.key === 'pillar_up' && !segmentDone.pillar_up) {
+      if (pillarPath.length > 8) {
+        var ymin = pillarPath[0].y, ymax = pillarPath[0].y;
+        var y0 = pillarPath[0].y;
+        for (var i = 1; i < pillarPath.length; i++) {
+          ymin = Math.min(ymin, pillarPath[i].y);
+          ymax = Math.max(ymax, pillarPath[i].y);
+        }
+        if (y0 > h * 0.56 && ymin < h * 0.44 && ymax - ymin > h * 0.18) pillarDone = true;
+      }
+      if (pillarDone) segmentDone.pillar_up = true;
+    }
+    rinkTwoDist0 = 0;
+    rinkSingleFromCenter = false;
+    bridgeFromLeft = false;
+  }
+
+  canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+  canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+  canvas.addEventListener('touchcancel', onTouchEnd, { passive: false });
+
+  var mouseDown = false;
+  canvas.addEventListener('mousedown', function (e) {
+    if (!started) return;
+    mouseDown = true;
+    onTouchStart(e);
+  });
+  canvas.addEventListener('mousemove', function (e) {
+    if (!started || !mouseDown) return;
+    onTouchMove(e);
+  });
+  window.addEventListener('mouseup', function () {
+    if (mouseDown) {
+      mouseDown = false;
+      touchDown = false;
+      onTouchEnd({ cancelable: true, preventDefault: function () {} });
+    }
+  });
+
+  function updateCrystals() {
+    for (var i = crystals.length - 1; i >= 0; i--) {
+      var c = crystals[i];
+      c.life -= c.decay;
+      if (c.kind === 'burst') {
+        c.grow = Math.min(1, c.grow + c.growSp);
+        c.x += c.vx;
+        c.y += c.vy;
+        c.vx *= 0.991;
+        c.vy *= 0.991;
+        c.vy -= 0.01;
+        c.rot += c.vr;
+      } else {
+        c.x += c.vx;
+        c.y += c.vy;
+        c.vy -= 0.02;
+        c.rot += c.vr;
+      }
+      if (c.life <= 0) crystals.splice(i, 1);
+    }
+  }
+
+  function drawCrystals() {
+    var time = performance.now() * 0.001;
+    var i;
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    for (i = 0; i < crystals.length; i++) {
+      var c = crystals[i];
+      if (c.kind === 'burst') continue;
+      var a2 = c.life * (c.boosted ? 0.55 : 0.42);
+      drawHexagon(c.x, c.y, c.size * c.life, c.rot, a2);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (i = 0; i < crystals.length; i++) {
+      var b = crystals[i];
+      if (b.kind !== 'burst') continue;
+      var gEase = 1 - Math.pow(1 - b.grow, 2.4);
+      var rad = b.sizeMin + (b.sizeMax - b.sizeMin) * gEase;
+      var tw = 0.5 + 0.5 * Math.sin(time * 5 + b.gleamOff);
+      var a = b.life * (0.2 + 0.55 * gEase) * (b.boosted ? 1.15 : 1) * (0.75 + 0.25 * tw);
+      if (b.shape === 'star') drawSparkleStar(b.x, b.y, rad, b.rot + time * 0.8, a, b.hue);
+      else if (b.shape === 'flake') drawMiniSnowflake(b.x, b.y, rad, b.rot, a, b.hue);
+      else drawShinyHex(b.x, b.y, rad, b.rot, a, b.hue);
+      if (gEase > 0.4 && b.life > 0.35) {
+        var gl = a * 0.35 * tw;
+        ctx.fillStyle = 'rgba(255,255,255,' + gl + ')';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, rad * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawBackground() {
+    var g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#0a1535');
+    g.addColorStop(0.45, '#0d1f4a');
+    g.addColorStop(1, '#050a18');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    var time = performance.now() * 0.001;
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      var twinkle = 0.5 + 0.5 * Math.sin(time * s.sp + s.tw);
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.15 + twinkle * 0.55) + ')';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawSnow() {
+    for (var i = 0; i < snowflakes.length; i++) {
+      var s = snowflakes[i];
+      s.x += s.vx;
+      s.y += s.vy;
+      if (s.y > h + 5) { s.y = -5; s.x = Math.random() * w; }
+      if (s.x < -5) s.x = w + 5;
+      if (s.x > w + 5) s.x = -5;
+      ctx.fillStyle = 'rgba(255,255,255,' + s.o + ')';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  var lastTs = 0;
+  var hintPulse = 0;
+
+  function syncLogic(ts) {
+    hintPulse = 0.5 + 0.5 * Math.sin(ts * 0.006);
+    var t = getTimelineTime();
+
+    if (started) {
+      var active = getActiveSegment(t);
+      if (active && active.key === 'alt_pillars' && !segmentDone.alt_pillars) {
+        altPhase = (Math.floor(ts / 420) % 2);
+      }
+      if (active && active.key !== lastSegmentKey) {
+        lastSegmentKey = active.key;
+        if (active.key === 'alt_pillars') {
+          altHits = 0;
+          altPhase = 0;
+        }
+      }
+      if (!active) lastSegmentKey = '';
+
+      if (segmentDone.castle_ring && castleProgress < 1) castleProgress = 1;
+    }
+
+    updateTimelineUI();
+  }
+
+  function frame(ts) {
+    if (!lastTs) lastTs = ts;
+    var dt = ts - lastTs;
+    lastTs = ts;
+
+    syncLogic(ts);
+    updateCrystals();
+    updateCinematicSnow();
+
+    drawBackground();
+    if (started) drawSnow();
+    drawGroundIce();
+    drawIcePillarPath();
+    drawStairPath();
+    drawBridgeLayer();
+    drawCastle();
+    drawCrystals();
+    drawCinematicSnowLayer();
+
+    var t = getTimelineTime();
+    var activeSeg = getActiveSegment(t);
+    var preSeg = getPreHintSegment(t);
+    drawHints(t, activeSeg, preSeg, hintPulse);
+
+    requestAnimationFrame(frame);
+  }
+
+  startBtn.addEventListener('click', function () {
+    startOverlay.classList.add('hidden');
+    started = true;
+    resetAllProgress();
+    audio.play().catch(function () {
+      toast.textContent = '无法播放，请检查 Let It Go.mp3 是否与页面同目录';
+      toast.classList.add('show');
+      setTimeout(function () { toast.classList.remove('show'); }, 2800);
+    });
+  });
+
+  recordBtn.addEventListener('click', function () {
+    toast.textContent = '录制功能开发中';
+    toast.classList.add('show');
+    setTimeout(function () { toast.classList.remove('show'); }, 2000);
+  });
+
+  audio.addEventListener('loadedmetadata', function () {
+    buildTimelineTicks();
+    applyTimelineVisual(getAudioT());
+    updateTimeRow();
+  });
+
+  audio.addEventListener('seeked', function () {
+    resetAllProgress();
+    buildTimelineTicks();
+    applyTimelineVisual(getAudioT());
+    updateTimeRow();
+  });
+
+  window.addEventListener('resize', resize);
+  resize();
+  initSnow();
+  buildTimelineTicks();
+  setupTimelineScrub();
+  applyTimelineVisual(0);
+  updateTimeRow();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
